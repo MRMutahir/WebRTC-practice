@@ -1,22 +1,31 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { useSocket } from "../context/SokitProvider";
 
 const Lobby = () => {
   const [email, setEmail] = useState("");
   const [room, setRoom] = useState("");
-  // const  soket  =  uses
+  const socket = useSocket();
+  const navigate = useNavigate();
 
   const handleSubmit = useCallback(
     (e) => {
       e.preventDefault();
-      console.log({
-        email,
-        room,
-      });
-      // Here, you might perform additional actions like sending the form data to an API
+      socket.emit("room:join", { email, room });
     },
-    [email, room]
+    [email, room, socket]
   );
-
+  const handleJoinRoom = useCallback((data) => {
+    const { email, room } = data;
+    console.log(email, room, ">>>>>>>>>>>>>>>>>>>>>>>>>>>>.emal room");
+    navigate(`/room/:${room}`);
+  }, []);
+  useEffect(() => {
+    socket.on("room:join", handleJoinRoom);
+    return () => {
+      socket.off("room:join", handleJoinRoom);
+    };
+  }, [socket, handleJoinRoom]);
   return (
     <div>
       <form onSubmit={handleSubmit}>
