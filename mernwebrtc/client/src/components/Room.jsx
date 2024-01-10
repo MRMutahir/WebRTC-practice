@@ -7,7 +7,7 @@ const Room = () => {
   const socket = useSocket();
   const [remotSocketId, setRemotSocketId] = useState(null);
   const [myStream, setmyStream] = useState(null);
-  const [remoteStream, setremoteStreamm] = useState(null);
+  const [remoteStream, setremoteStreamm] = useState("");
 
   const handelUserJoined = useCallback(({ email, id }) => {
     console.log(`email ${email}  join room`);
@@ -27,27 +27,53 @@ const Room = () => {
     },
     [socket]
   );
+
+  const sendStrem = useCallback(() => {
+    for (const track of myStream.getTracks()) {
+      PeerService.peer.addTrack(track, myStream);
+    }
+  }, [myStream]);
+
+  // const sendStrem = useCallback(() => {
+  //   if (myStream && PeerService.peer) {
+  //     PeerService.peer.getSenders().forEach((sender) => {
+  //       myStream.getTracks().forEach((track) => {
+  //         if (sender.track && sender.track.kind === track.kind) {
+  //           PeerService.peer.removeTrack(sender);
+  //         }
+  //       });
+  //     });
+  //     myStream.getTracks().forEach((track) => {
+  //       PeerService.peer.addTrack(track, myStream);
+  //     });
+  //   }
+  // }, [myStream]);
   const handelacceptedCall = useCallback(
-    (from, answer) => {
+    ({ from, answer }) => {
       PeerService.setLocalDescription(answer);
       console.log("Call accepted");
-      for (const track of myStream.getTracks()) {
-        PeerService.peer.addTrack(track, myStream);
-      }
+      sendStrem();
     },
-    [myStream]
+    [sendStrem]
   );
-  const handelNegoNeedFinal = useCallback(({ ans }) => {
-    PeerService.setLocalDescription(ans);
+  const handelNegoNeedFinal = useCallback(async ({ ans }) => {
+    await PeerService.setLocalDescription(ans);
   }, []);
 
   const handelNegoNeedIncomming = useCallback(
-    (from, offer) => {
-      const answer = PeerService.getAnswer(offer);
+    async (from, offer) => {
+      const answer = await PeerService.getAnswer(offer);
       socket.emit("peer:nego:done", { to: from, answer });
     },
     [socket]
   );
+  useEffect(() => {
+    PeerService.peer.addEventListener("track", async (ev) => {
+      const remoteStrem = ev.streams;
+      console.log("GOT TRACKS!!");
+      setremoteStreamm(remoteStrem[0]);
+    });
+  }, []);
 
   useEffect(() => {
     socket.on("user:joined", handelUserJoined);
@@ -85,13 +111,6 @@ const Room = () => {
     setmyStream(stream);
   }, [remotSocketId, socket]);
 
-  useEffect(() => {
-    PeerService.peer.addEventListener("track", async (ev) => {
-      const remoteStrem = ev.streams;
-      console.log("GOT TRACKS!!");
-      setremoteStreamm(remoteStrem);
-    });
-  }, []);
   const handleNogoNeeded = useCallback(async () => {
     const offer = await PeerService.getOffer();
     socket.emit("peer:nego:needed", {
@@ -100,11 +119,7 @@ const Room = () => {
     });
   }, [remotSocketId, socket]);
   useEffect(() => {
-    PeerService.peer.addEventListener(
-      "negotiationneeded",
-      handleNogoNeeded
-    );
-
+    PeerService.peer.addEventListener("negotiationneeded", handleNogoNeeded);
     return () => {
       PeerService.peer.removeEventListener(
         "negotiationneeded",
@@ -116,9 +131,12 @@ const Room = () => {
     <div>
       <h4>{remotSocketId ? "Connected" : "no one in Room "}</h4>
       {remotSocketId && <button onClick={handelCallUser}>Call</button>}
-      <h1>My Stream</h1>
+      {myStream && <button onClick={sendStrem}>send Stream</button>}
       {myStream && (
-        <ReactPlayer playing muted width={100} height={100} url={myStream} />
+        <>
+          <h1>My Stream</h1>
+          <ReactPlayer playing muted width={100} height={100} url={myStream} />
+        </>
       )}
 
       {remoteStream && (
